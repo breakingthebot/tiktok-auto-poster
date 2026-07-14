@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # deploy/deploy.sh
 # One-time-per-change deployment script: creates the Cloud Tasks queue
-# and TikTok access-token secret (if missing), deploys Publish first (so
-# its URL is known), then Dispatch, sets up a shared invoker service
-# account, and creates/updates the Cloud Scheduler job.
+# (if missing), deploys Publish first (so its URL is known), then
+# Dispatch, sets up a shared invoker service account, and
+# creates/updates the Cloud Scheduler job. Reads its TikTok access token
+# from the shared app-credentials Secret Manager secret (see
+# GCP-Builds/06-api-keymaster) rather than creating its own dedicated
+# secret.
 #
 # NOT run automatically -- review the variables below, make sure billing
-# is active on the target project, then run this yourself:
+# is active on the target project and app-credentials already has a
+# "tiktok_access_token" key set, then run this yourself:
 #   bash deploy/deploy.sh
 #
 # Connects to: index.js, src/dispatch.js, src/publish.js
@@ -25,7 +29,8 @@ SCHEDULER_JOB_NAME="tiktok-poster-schedule"
 # own posting schedule, there's no "correct" answer here, it's yours to set.
 SCHEDULE="0 9,13,19 * * *"
 TIME_ZONE="America/New_York"
-TIKTOK_SECRET_ID="tiktok-access-token"
+CREDENTIALS_SECRET_ID="app-credentials"
+TIKTOK_CREDENTIAL_KEY="tiktok_access_token"
 CLOUD_TASKS_QUEUE="publish-posts"
 INVOKER_SERVICE_ACCOUNT="tiktok-poster-invoker"
 
@@ -60,16 +65,15 @@ else
   echo "Cloud Tasks queue ${CLOUD_TASKS_QUEUE} already exists -- leaving it alone."
 fi
 
-if ! gcloud secrets describe "${TIKTOK_SECRET_ID}" >/dev/null 2>&1; then
-  echo "Secret ${TIKTOK_SECRET_ID} does not exist yet."
-  echo "Paste the TikTok OAuth access token (input hidden), then press Enter:"
-  read -rs TIKTOK_ACCESS_TOKEN
-  echo
-  printf '%s' "${TIKTOK_ACCESS_TOKEN}" | gcloud secrets create "${TIKTOK_SECRET_ID}" --data-file=-
-  unset TIKTOK_ACCESS_TOKEN
+if ! gcloud secrets describe "${CREDENTIALS_SECRET_ID}" >/dev/null 2>&1; then
+  echo "ERROR: Secret ${CREDENTIALS_SECRET_ID} does not exist yet."
+  echo "Create it via GCP-Builds/06-api-keymaster/deploy/deploy.sh first (or manually)"
+  echo "with a JSON blob that includes at least a \"${TIKTOK_CREDENTIAL_KEY}\" key, then re-run this script."
+  exit 1
 else
-  echo "Secret ${TIKTOK_SECRET_ID} already exists -- leaving its value alone."
-  echo "To rotate it: printf '%s' 'new-token' | gcloud secrets versions add ${TIKTOK_SECRET_ID} --data-file=-"
+  echo "Secret ${CREDENTIALS_SECRET_ID} already exists -- leaving its value alone."
+  echo "To add/rotate this build's key: fetch the current JSON, edit it, then:"
+  echo "  printf '%s' '<full-updated-json>' | gcloud secrets versions add ${CREDENTIALS_SECRET_ID} --data-file=-"
 fi
 
 echo "Ensuring the shared invoker service account exists..."
@@ -89,16 +93,16 @@ gcloud functions deploy "${PUBLISH_FUNCTION_NAME}" \
   --entry-point=publish \
   --trigger-http \
   --no-allow-unauthenticated \
-  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY},TIKTOK_ACCESS_TOKEN_SECRET_ID=${TIKTOK_SECRET_ID},CLOUD_TASKS_QUEUE=${CLOUD_TASKS_QUEUE},CLOUD_TASKS_LOCATION=${REGION},PUBLISH_FUNCTION_URL=placeholder,TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=${INVOKER_EMAIL}"
+  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY},CREDENTIALS_SECRET_ID=${CREDENTIALS_SECRET_ID},TIKTOK_CREDENTIAL_KEY=${TIKTOK_CREDENTIAL_KEY},CLOUD_TASKS_QUEUE=${CLOUD_TASKS_QUEUE},CLOUD_TASKS_LOCATION=${REGION},PUBLISH_FUNCTION_URL=placeholder,TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=${INVOKER_EMAIL}"
 
 PUBLISH_URL=$(gcloud functions describe "${PUBLISH_FUNCTION_NAME}" \
   --region="${REGION}" --gen2 --format="value(serviceConfig.uri)")
 echo "Publish URL: ${PUBLISH_URL}"
 
-echo "Granting Publish's runtime account read access to the TikTok secret and Firestore..."
+echo "Granting Publish's runtime account read access to the shared secret and Firestore..."
 PUBLISH_SERVICE_ACCOUNT=$(gcloud functions describe "${PUBLISH_FUNCTION_NAME}" \
   --region="${REGION}" --gen2 --format="value(serviceConfig.serviceAccountEmail)")
-gcloud secrets add-iam-policy-binding "${TIKTOK_SECRET_ID}" \
+gcloud secrets add-iam-policy-binding "${CREDENTIALS_SECRET_ID}" \
   --member="serviceAccount:${PUBLISH_SERVICE_ACCOUNT}" \
   --role="roles/secretmanager.secretAccessor"
 gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
@@ -120,7 +124,7 @@ gcloud functions deploy "${DISPATCH_FUNCTION_NAME}" \
   --entry-point=dispatch \
   --trigger-http \
   --no-allow-unauthenticated \
-  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY},TIKTOK_ACCESS_TOKEN_SECRET_ID=${TIKTOK_SECRET_ID},CLOUD_TASKS_QUEUE=${CLOUD_TASKS_QUEUE},CLOUD_TASKS_LOCATION=${REGION},PUBLISH_FUNCTION_URL=${PUBLISH_URL},TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=${INVOKER_EMAIL}"
+  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY},CREDENTIALS_SECRET_ID=${CREDENTIALS_SECRET_ID},TIKTOK_CREDENTIAL_KEY=${TIKTOK_CREDENTIAL_KEY},CLOUD_TASKS_QUEUE=${CLOUD_TASKS_QUEUE},CLOUD_TASKS_LOCATION=${REGION},PUBLISH_FUNCTION_URL=${PUBLISH_URL},TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL=${INVOKER_EMAIL}"
 
 DISPATCH_URL=$(gcloud functions describe "${DISPATCH_FUNCTION_NAME}" \
   --region="${REGION}" --gen2 --format="value(serviceConfig.uri)")

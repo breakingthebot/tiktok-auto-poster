@@ -17,7 +17,6 @@ jest.mock("@google-cloud/tasks");
 const REQUIRED_ENV = {
   GCP_PROJECT_ID: "test-project",
   TIKTOK_CLIENT_KEY: "aw_client_key",
-  TIKTOK_ACCESS_TOKEN_SECRET_ID: "tiktok-access-token",
   CLOUD_TASKS_QUEUE: "publish-posts",
   CLOUD_TASKS_LOCATION: "us-central1",
   PUBLISH_FUNCTION_URL: "https://publish.example.com",

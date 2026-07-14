@@ -16,7 +16,6 @@ jest.mock("@google-cloud/secret-manager");
 const REQUIRED_ENV = {
   GCP_PROJECT_ID: "test-project",
   TIKTOK_CLIENT_KEY: "aw_client_key",
-  TIKTOK_ACCESS_TOKEN_SECRET_ID: "tiktok-access-token",
   CLOUD_TASKS_QUEUE: "publish-posts",
   CLOUD_TASKS_LOCATION: "us-central1",
   PUBLISH_FUNCTION_URL: "https://publish.example.com",
@@ -75,7 +74,7 @@ describe("runPublish", () => {
       markPostFailed: jest.fn().mockResolvedValue(undefined),
     }));
     jest.doMock("../src/secrets", () => ({
-      getSecret: jest.fn().mockResolvedValue("fake-access-token"),
+      getCredential: jest.fn().mockResolvedValue("fake-access-token"),
     }));
     jest.doMock("../src/tiktokClient", () => ({
       initVideoPost: jest.fn().mockResolvedValue({ publishId: "v_pub_url~123" }),
@@ -101,7 +100,7 @@ describe("runPublish", () => {
       markPostFailed: jest.fn().mockResolvedValue(undefined),
     }));
     jest.doMock("../src/secrets", () => ({
-      getSecret: jest.fn().mockResolvedValue("fake-access-token"),
+      getCredential: jest.fn().mockResolvedValue("fake-access-token"),
     }));
     jest.doMock("../src/tiktokClient", () => ({
       initVideoPost: jest.fn().mockRejectedValue(new Error("The access token is invalid or expired.")),

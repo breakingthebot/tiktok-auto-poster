@@ -2,12 +2,16 @@
  * src/config.js
  * Reads non-secret runtime configuration from environment variables. The
  * one credential this app needs (the TikTok access token) is never read
- * here -- only its Secret Manager resource name
- * (TIKTOK_ACCESS_TOKEN_SECRET_ID). Set these as Cloud Run Function
+ * here -- only the shared credentials secret's resource name
+ * (CREDENTIALS_SECRET_ID) and which key inside it holds this build's
+ * token (TIKTOK_CREDENTIAL_KEY). Set these as Cloud Run Function
  * environment variables, never in a committed .env.
  * Connects to: dispatch.js, publish.js, secrets.js
  * Created: 2026-07-13
  */
+
+const DEFAULT_CREDENTIALS_SECRET_ID = "app-credentials";
+const DEFAULT_TIKTOK_CREDENTIAL_KEY = "tiktok_access_token";
 
 class MissingConfigError extends Error {}
 
@@ -15,7 +19,8 @@ class MissingConfigError extends Error {}
  * @typedef {object} AppConfig
  * @property {string} gcpProjectId
  * @property {string} tiktokClientKey
- * @property {string} tiktokAccessTokenSecretId
+ * @property {string} credentialsSecretId
+ * @property {string} tiktokCredentialKey
  * @property {string} cloudTasksQueue
  * @property {string} cloudTasksLocation
  * @property {string} publishFunctionUrl
@@ -43,7 +48,8 @@ function loadConfig() {
   return {
     gcpProjectId: requireEnv("GCP_PROJECT_ID"),
     tiktokClientKey: requireEnv("TIKTOK_CLIENT_KEY"),
-    tiktokAccessTokenSecretId: requireEnv("TIKTOK_ACCESS_TOKEN_SECRET_ID"),
+    credentialsSecretId: (process.env.CREDENTIALS_SECRET_ID || "").trim() || DEFAULT_CREDENTIALS_SECRET_ID,
+    tiktokCredentialKey: (process.env.TIKTOK_CREDENTIAL_KEY || "").trim() || DEFAULT_TIKTOK_CREDENTIAL_KEY,
     cloudTasksQueue: requireEnv("CLOUD_TASKS_QUEUE"),
     cloudTasksLocation: requireEnv("CLOUD_TASKS_LOCATION"),
     publishFunctionUrl: requireEnv("PUBLISH_FUNCTION_URL"),

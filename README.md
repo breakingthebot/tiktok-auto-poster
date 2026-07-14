@@ -24,7 +24,8 @@ Pulls drafted video posts from a Firestore queue and publishes them to TikTok, o
 See `.env.example` for the full list with comments. Both functions read the same variables (even though each only uses a subset). Summary:
 - `GCP_PROJECT_ID` — the project holding the Secret Manager secret, Cloud Tasks queue, and Firestore database.
 - `TIKTOK_CLIENT_KEY` — your TikTok Developer app's client key (not secret, just an identifier).
-- `TIKTOK_ACCESS_TOKEN_SECRET_ID` — the *name* of the Secret Manager secret holding the TikTok OAuth access token. The token itself is never an environment variable or a file on disk.
+- `CREDENTIALS_SECRET_ID` — the *name* of the shared Secret Manager secret holding this and other builds' credentials as one JSON blob (see [API Keymaster](https://github.com/breakingthebot/api-keymaster)). Defaults to `app-credentials`.
+- `TIKTOK_CREDENTIAL_KEY` — which key inside that blob holds this build's TikTok access token. Defaults to `tiktok_access_token`. The token itself is never an environment variable or a file on disk.
 - `CLOUD_TASKS_QUEUE` / `CLOUD_TASKS_LOCATION` — the Cloud Tasks queue Dispatch enqueues into.
 - `PUBLISH_FUNCTION_URL` — Publish's deployed URL, so Dispatch knows where to send tasks.
 - `TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL` — the service account Cloud Tasks uses to authenticate its calls to Publish (not secret, just an identifier).
@@ -48,11 +49,11 @@ node scripts/seed-sample-post.js
 ```
 
 ## Deployed
-Not deployed yet. `deploy/deploy.sh` creates the Firestore database, Cloud Tasks queue, and TikTok secret (if missing), deploys Publish first (so its URL is known), then Dispatch, sets up a shared invoker service account, and creates the Cloud Scheduler job — in one script. Review the variables at the top of that file (project ID, region, posting schedule, timezone, your real TikTok client key) before running it.
+Not deployed yet. `deploy/deploy.sh` creates the Firestore database and Cloud Tasks queue (if missing), deploys Publish first (so its URL is known), then Dispatch, sets up a shared invoker service account, and creates the Cloud Scheduler job — in one script. It expects the shared `app-credentials` secret to already exist with a `tiktok_access_token` key set (created via [API Keymaster](https://github.com/breakingthebot/api-keymaster)'s deploy script or manually) and will fail fast with a clear message if it doesn't. Review the variables at the top of that file (project ID, region, posting schedule, timezone, your real TikTok client key) before running it.
 
 ## Data Handling
-- The only credential this app uses is a TikTok OAuth access token, stored exclusively in Google Secret Manager — never in a file, environment variable dump, or log line.
-- Publish's runtime service account is granted read-only access to that one secret (`roles/secretmanager.secretAccessor`) plus Firestore access (`roles/datastore.user`); Dispatch's runtime account is granted only `roles/cloudtasks.enqueuer` on its one queue plus the same Firestore access — nothing broader.
+- The only credential this app uses is a TikTok OAuth access token, read from the `tiktok_access_token` key of the shared `app-credentials` Secret Manager secret — never in a file, environment variable dump, or log line. That secret also holds credentials for other builds in this series; this app only ever reads its own key out of it.
+- Publish's runtime service account is granted read-only access to that one shared secret (`roles/secretmanager.secretAccessor`) plus Firestore access (`roles/datastore.user`); Dispatch's runtime account is granted only `roles/cloudtasks.enqueuer` on its one queue plus the same Firestore access — nothing broader.
 - Neither function is publicly invokable (`--no-allow-unauthenticated`); Cloud Scheduler and Cloud Tasks each authenticate via a dedicated OIDC-token-minting service account.
 - Firestore stores only what you put in a draft: a caption, a video URL, a privacy level, and its publish status — no TikTok account credentials or personal data beyond what's in your own caption text.
 
@@ -66,7 +67,7 @@ Two Cloud Run Functions, deployed from the same Node source directory via differ
 
 - `src/config.js` reads and validates all non-secret configuration. Fails fast with a clear error if anything required is missing.
 - `src/contentQueue.js` is the only module that talks to Firestore for the queue: `getDuePosts()`, `getPostById()`, and status-marking helpers. Populating the queue (adding drafts) is intentionally out of scope — see Notes.
-- `src/secrets.js` is the only module that talks to Secret Manager, injectable client for tests.
+- `src/secrets.js` is the only module that talks to Secret Manager. `getSecret()` fetches a raw secret's plaintext; `getCredential()` fetches the shared `app-credentials` JSON blob and pulls out this build's one key (`tiktok_access_token` by default). Both take an injectable client for tests.
 - `src/tasks.js` is the only module that talks to Cloud Tasks. Each enqueued task carries an OIDC token (`TASKS_INVOKER_SERVICE_ACCOUNT_EMAIL`) so Cloud Tasks' call to Publish actually authenticates.
 - `src/dispatch.js`/`src/publish.js` each split into a `run*()` function (fully unit-testable with injected dependencies) and an exported HTTP handler (constructs the real GCP clients, wired to `functions-framework`).
 - `index.js` (repo root) requires both, registering `dispatch` and `publish` — Cloud Functions' Node buildpack finds either by name via `--entry-point` at deploy time.

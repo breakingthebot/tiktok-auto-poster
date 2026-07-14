@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-07-14
+### Changed
+- Retrofitted to read the TikTok access token from the shared `app-credentials` Secret Manager secret (see `api-keymaster`) instead of a dedicated `tiktok-access-token` secret, keeping this account under Secret Manager's 6-active-version free tier as more builds are added.
+- `config.js`: `TIKTOK_ACCESS_TOKEN_SECRET_ID` replaced with `CREDENTIALS_SECRET_ID` (default `app-credentials`) and `TIKTOK_CREDENTIAL_KEY` (default `tiktok_access_token`).
+- `secrets.js`: added `getCredential()`, which fetches the shared JSON blob and extracts one named key.
+- `deploy/deploy.sh`: no longer creates a secret; fails fast with a clear message if `app-credentials` doesn't already exist.
+
 ## [0.1.0] - 2026-07-13
 ### Added
 - Two Cloud Run Functions: `dispatch` (Scheduler-triggered, fans out one Cloud Task per due post) and `publish` (Cloud Tasks-triggered, calls TikTok's real Content Posting API and updates the post's status).

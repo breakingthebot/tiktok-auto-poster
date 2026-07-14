@@ -19,7 +19,7 @@ const {
   markPostPublished,
   markPostFailed,
 } = require("./contentQueue");
-const { getSecret } = require("./secrets");
+const { getCredential } = require("./secrets");
 const { initVideoPost } = require("./tiktokClient");
 const { logError, logInfo } = require("./logger");
 
@@ -42,10 +42,10 @@ async function runPublish(postId, deps) {
   logInfo("publish_started", { postId });
 
   try {
-    const accessToken = await getSecret(
+    const accessToken = await getCredential(
       config.gcpProjectId,
-      config.tiktokAccessTokenSecretId,
-      "latest",
+      config.credentialsSecretId,
+      config.tiktokCredentialKey,
       deps.secretManagerClient,
     );
     const { publishId } = await initVideoPost(accessToken, post, deps.fetchImpl);
