@@ -1,0 +1,17 @@
+# Local build-process files (never pushed)
+AGENTS.md
+CLAUDE.md
+BUILD_NOTES.md
+.claude/
+
+# Node
+node_modules/
+npm-debug.log*
+coverage/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
