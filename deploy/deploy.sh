@@ -5,7 +5,7 @@
 # Dispatch, sets up a shared invoker service account, and
 # creates/updates the Cloud Scheduler job. Reads its TikTok access token
 # from the shared app-credentials Secret Manager secret (see
-# GCP-Builds/06-api-keymaster) rather than creating its own dedicated
+# GCP-Builds/41-api-keymaster) rather than creating its own dedicated
 # secret.
 #
 # NOT run automatically -- review the variables below, make sure billing
@@ -67,7 +67,7 @@ fi
 
 if ! gcloud secrets describe "${CREDENTIALS_SECRET_ID}" >/dev/null 2>&1; then
   echo "ERROR: Secret ${CREDENTIALS_SECRET_ID} does not exist yet."
-  echo "Create it via GCP-Builds/06-api-keymaster/deploy/deploy.sh first (or manually)"
+  echo "Create it via GCP-Builds/41-api-keymaster/deploy/deploy.sh first (or manually)"
   echo "with a JSON blob that includes at least a \"${TIKTOK_CREDENTIAL_KEY}\" key, then re-run this script."
   exit 1
 else

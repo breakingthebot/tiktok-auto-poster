@@ -5,7 +5,7 @@
  * and get the current version's plaintext back. Never log the returned
  * value.
  * getCredential() reads this service's one credential out of the shared
- * app-credentials JSON blob (see GCP-Builds/06-api-keymaster), so this
+ * app-credentials JSON blob (see GCP-Builds/41-api-keymaster), so this
  * build doesn't need its own separate Secret Manager secret.
  * Connects to: config.js, publish.js
  * Created: 2026-07-13
